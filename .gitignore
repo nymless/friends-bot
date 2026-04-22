@@ -8,3 +8,15 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Environment variables
+.env
+
+# SQLite database
+*.db
+
+# Pytest
+.pytest_cache/
+
+# Mypy
+.mypy_cache/

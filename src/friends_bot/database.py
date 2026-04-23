@@ -81,11 +81,10 @@ class DBHandler:
         cur.execute(
             f"""
             SELECT user_id, full_name FROM users
-            WHERE chat_id = ? AND is_active = 1
-                AND user_id NOT IN (
-                    SELECT user_id FROM stats WHERE chat_id = ?
-                        AND ({DateCol.LAST_WIN} = ? OR {DateCol.LAST_LOSE} = ?)
-                )
+            WHERE chat_id = ? AND is_active = 1 AND user_id NOT IN (
+                SELECT user_id FROM stats WHERE chat_id = ?
+                    AND ({DateCol.LAST_WIN} = ? OR {DateCol.LAST_LOSE} = ?)
+            )
             """,
             (chat_id, chat_id, today, today),
         )
@@ -108,6 +107,27 @@ class DBHandler:
             (chat_id, user_id, today, today),
         )
         self.conn.commit()
+
+    def get_statistics(self, chat_id: int, game_type: GameTypes):
+        """Returns a list of tuples (full_name, count) for a specific game"""
+        configs = {
+            GameType.WINNER: CountCol.WIN_COUNT,
+            GameType.LOSER: CountCol.LOSE_COUNT,
+        }
+        column = configs[game_type]
+
+        cur = self.conn.cursor()
+        # Select only with a positive score and sort in descending order
+        cur.execute(
+            f"""SELECT users.full_name, stats.{column} FROM stats
+                JOIN users ON stats.user_id = users.user_id
+                AND stats.chat_id = users.chat_id
+                WHERE stats.chat_id = ? AND stats.{column} > 0
+                ORDER BY stats.{column} DESC
+                """,
+            (chat_id,),
+        )
+        return cur.fetchall()
 
     def close(self):
         self.conn.close()

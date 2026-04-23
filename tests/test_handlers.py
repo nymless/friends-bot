@@ -37,7 +37,7 @@ async def test_start_game_no_players():
 
     await start_game(chat_id=1, game_type="loser", message=message, db=db)
 
-    message.answer.assert_called_with("Никто не зарегистрировался! Пиши /reg")
+    message.answer.assert_called_with("Никто не зарегистрировался!")
 
 
 @pytest.mark.asyncio

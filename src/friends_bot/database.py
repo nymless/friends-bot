@@ -1,16 +1,18 @@
 import sqlite3
 from datetime import datetime
 
-from friends_bot.app_types import CountCol, DateCol, GameType, GameTypes
+from friends_bot.enums import CountCol, DateCol, GameType
 
 
 class DBHandler:
     def __init__(self, db_path: str):
-        self.conn = sqlite3.connect(db_path)
+        self.conn = sqlite3.connect(db_path, check_same_thread=False)
         self.create_tables()
 
     def create_tables(self) -> None:
         cur = self.conn.cursor()
+
+        # Create tables
         cur.execute("""
         CREATE TABLE IF NOT EXISTS users (
             chat_id INTEGER NOT NULL,
@@ -30,6 +32,19 @@ class DBHandler:
             last_lose TEXT,
             PRIMARY KEY(chat_id, user_id)
         )""")
+
+        # Create utility indexes to ensure data integrity
+        # by preventing possible race conditions
+        cur.execute("""
+        CREATE UNIQUE INDEX IF NOT EXISTS one_winner_per_day
+            ON stats(chat_id, last_win)
+            WHERE last_win IS NOT NULL
+        """)
+        cur.execute("""
+        CREATE UNIQUE INDEX IF NOT EXISTS one_loser_per_day
+            ON stats(chat_id, last_lose)
+            WHERE last_lose IS NOT NULL
+        """)
         self.conn.commit()
 
     def register_user(
@@ -58,7 +73,7 @@ class DBHandler:
         self.conn.commit()
         return cur.rowcount > 0
 
-    def is_already_runned(self, chat_id: int, game_type: GameTypes):
+    def is_already_runned(self, chat_id: int, game_type: GameType):
         """Check if there was already a winner today"""
         configs = {
             GameType.WINNER: DateCol.LAST_WIN,
@@ -90,7 +105,7 @@ class DBHandler:
         )
         return cur.fetchall()
 
-    def set_winner(self, chat_id: int, user_id: int, game_type: GameTypes) -> None:
+    def set_winner(self, chat_id: int, user_id: int, game_type: GameType) -> bool:
         configs = {
             GameType.WINNER: (CountCol.WIN_COUNT, DateCol.LAST_WIN),
             GameType.LOSER: (CountCol.LOSE_COUNT, DateCol.LAST_LOSE),
@@ -99,16 +114,20 @@ class DBHandler:
         today = datetime.now().strftime("%Y-%m-%d")
 
         cur = self.conn.cursor()
-        cur.execute(
-            f"""INSERT INTO stats (chat_id, user_id, {count_col}, {date_col}) 
-                VALUES (?, ?, 1, ?) 
-                ON CONFLICT(chat_id, user_id) 
-                DO UPDATE SET {count_col} = {count_col} + 1, {date_col} = ?""",
-            (chat_id, user_id, today, today),
-        )
-        self.conn.commit()
+        try:
+            cur.execute(
+                f"""INSERT INTO stats (chat_id, user_id, {count_col}, {date_col}) 
+                    VALUES (?, ?, 1, ?) 
+                    ON CONFLICT(chat_id, user_id) 
+                    DO UPDATE SET {count_col} = {count_col} + 1, {date_col} = ?""",
+                (chat_id, user_id, today, today),
+            )
+            self.conn.commit()
+            return True
+        except sqlite3.IntegrityError:
+            return False
 
-    def get_statistics(self, chat_id: int, game_type: GameTypes):
+    def get_statistics(self, chat_id: int, game_type: GameType):
         """Returns a list of tuples (full_name, count) for a specific game"""
         configs = {
             GameType.WINNER: CountCol.WIN_COUNT,

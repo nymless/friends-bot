@@ -1,13 +1,14 @@
 import asyncio
 import logging
 import random
+from collections import defaultdict
 
 from aiogram import F, Router, types
 from aiogram.filters import Command
 
-from friends_bot.app_types import GameType, GameTypes
 from friends_bot.config import ALLOWED_CHAT_ID, ALLOWED_CHAT_TYPES
 from friends_bot.database import DBHandler
+from friends_bot.enums import GameType
 
 logger = logging.getLogger(__name__)
 
@@ -80,29 +81,36 @@ MESSAGES = {
     ],
 }
 
+# Dictionary containing Lock async mutex per chat_id
+chat_locks: dict[int, asyncio.Lock] = defaultdict(asyncio.Lock)
+
 
 async def start_game(
-    chat_id: int, game_type: GameTypes, message: types.Message, db: DBHandler
+    chat_id: int, game_type: GameType, message: types.Message, db: DBHandler
 ):
-    already_won = db.is_already_runned(chat_id, game_type)
-    if already_won:
-        await message.answer("Сегодня выбор уже сделан!")
-        return
+    # Add Lock to start_game function per chat_id to prevent possible race conditions
+    async with chat_locks[chat_id]:
+        already_won = db.is_already_runned(chat_id, game_type)
+        if already_won:
+            await message.answer("Сегодня выбор уже сделан!")
+            return
 
-    players = db.get_players(chat_id)
-    if not players:
-        await message.answer("Никто не зарегистрировался!")
-        return
+        players = db.get_players(chat_id)
+        if not players:
+            await message.answer("Никто не зарегистрировался!")
+            return
 
-    user_id, full_name = random.choice(players)
-    winner_message = MESSAGES[game_type]
-    winner_message[-1] += full_name
+        user_id, full_name = random.choice(players)
+        winner_message = MESSAGES[game_type].copy()
+        winner_message[-1] += full_name
 
-    for step in winner_message:
-        await message.answer(step)
-        await asyncio.sleep(1.5)
+        for step in winner_message:
+            await message.answer(step)
+            await asyncio.sleep(1.5)
 
-    db.set_winner(chat_id, user_id, game_type)
+        success = db.set_winner(chat_id, user_id, game_type)
+        if not success:
+            await message.answer("Кто-то уже успел раньше 😄")
 
 
 @router.message(Command("run"))
@@ -115,7 +123,7 @@ async def start_loser_game(message: types.Message, db: DBHandler):
     await start_game(message.chat.id, GameType.LOSER, message, db)
 
 
-async def show_statistics(message: types.Message, db: DBHandler, game_type: GameTypes):
+async def show_statistics(message: types.Message, db: DBHandler, game_type: GameType):
     stats = db.get_statistics(message.chat.id, game_type)
 
     if not stats:

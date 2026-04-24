@@ -2,14 +2,15 @@
 
 Версия на русском: [README.ru.md](README.ru.md).
 
-A Telegram bot for daily "Winner of the Day" and "Loser of the Day" draws. Inspired by [TheUserOfTheDayBot](https://github.com) repository, but completely rewritten in Python with a focus on modern practices.
+A Telegram bot for daily "Winner of the Day" and "Loser of the Day" draws. Inspired by [TheUserOfTheDayBot](https://github.com/DevDmitryN/TheUserOfTheDayBot) repository, but completely rewritten in Python with a focus on modern practices.
 
 ## Key Features
 
 - **Tech Stack:** Python 3.12+, `aiogram`, `SQLite`.
 - **Package Management:** Powered by `uv` for lightning-fast dependency handling.
 - **Reliability:** Static type hinting `mypy`, unit tests `pytest`, and logging.
-- **Security:** Strict access control via `ALLOWED_CHAT_ID` (prevents unauthorized use in other groups).
+- **Security:** Strict access control via `ALLOWED_CHAT_ID` (prevents usage in other groups).
+- **Asynchrony:** Dual-layer protection against potential race conditions caused by asynchrony. This includes a code-level lock for commands leading to a critical section, and a database-level layer where the DB itself maintains data integrity.
 - **Architecture:** Clean modular structure (Handlers / Database / Config separation).
 
 ## Getting Started
@@ -44,5 +45,5 @@ make clean      # Clear cache and virtual environment
 - `/run` — Run the "Winner of the Day" draw.
 - `/pidor` — Run the "Loser of the Day" draw.
 - `/stats` — View the leaderboard.
-- `/pidorstats` — View the leaderboard.
+- `/pidorstats` — View losers leaderboard.
 - `/delete` — Opt-out of the game (your history is preserved).

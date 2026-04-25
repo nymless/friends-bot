@@ -6,11 +6,11 @@ A Telegram bot for daily "Winner of the Day" and "Loser of the Day" draws. Inspi
 
 ## Key Features
 
-- **Tech Stack:** Python 3.12+, `aiogram`, `SQLite`.
+- **Tech Stack:** Python 3.12+, `aiogram 3.x`, `SQLite`.
 - **Package Management:** Powered by `uv` for lightning-fast dependency handling.
 - **Reliability:** Static type hinting `mypy`, unit tests `pytest`, and logging.
 - **Security:** Strict access control via `ALLOWED_CHAT_ID` (prevents usage in other groups).
-- **Asynchrony:** Dual-layer protection against potential race conditions caused by asynchrony. This includes a code-level lock for commands leading to a critical section, and a database-level layer where the DB itself maintains data integrity.
+- **Asynchrony:** Dual-layer protection against potential race conditions (code-level and database-level).
 - **Architecture:** Clean modular structure (Handlers / Database / Config separation).
 
 ## Getting Started

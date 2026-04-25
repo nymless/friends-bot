@@ -33,7 +33,7 @@ class DBHandler:
             PRIMARY KEY(chat_id, user_id)
         )""")
 
-        # Create utility indexes to ensure data integrity
+        # Create utility indexes "One winner per day" to ensure data integrity
         # by preventing possible race conditions
         cur.execute("""
         CREATE UNIQUE INDEX IF NOT EXISTS one_winner_per_day
@@ -115,11 +115,15 @@ class DBHandler:
 
         cur = self.conn.cursor()
         try:
+            # If there is no record, a new one is set with a counter of 1
+            # If a record exists, the counter is incremented and a new date is set
             cur.execute(
                 f"""INSERT INTO stats (chat_id, user_id, {count_col}, {date_col}) 
                     VALUES (?, ?, 1, ?) 
-                    ON CONFLICT(chat_id, user_id) 
-                    DO UPDATE SET {count_col} = {count_col} + 1, {date_col} = ?""",
+                    ON CONFLICT(chat_id, user_id) DO UPDATE SET
+                        {count_col} = {count_col} + 1,
+                        {date_col} = ?
+                """,
                 (chat_id, user_id, today, today),
             )
             self.conn.commit()

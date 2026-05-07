@@ -1,13 +1,10 @@
 import asyncio
-import logging
 
 from aiogram import Bot, Dispatcher
 
 from friends_bot.config import BOT_TOKEN, DB_PATH
 from friends_bot.database import DBHandler
 from friends_bot.handlers import router
-
-logger = logging.getLogger(__name__)
 
 
 async def main():

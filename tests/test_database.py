@@ -7,12 +7,12 @@ from friends_bot.enums import GameType
 @pytest.fixture
 def db():
     """
-    Создает изолированную SQLite-базу в памяти для каждого теста.
+    Creates an isolated SQLite database in memory for each test.
 
-    Почему важно:
-    - тесты не влияют друг на друга
-    - состояние всегда чистое
-    - максимально приближено к реальной БД
+    Why it matters:
+    - tests do not affect each other
+    - state is always clean
+    - behavior is as close to a real DB as possible
     """
     handler = DBHandler(":memory:")
     yield handler
@@ -21,135 +21,135 @@ def db():
 
 def test_register_and_update_user(db):
     """
-    Проверка идемпотентности поведения регистрации пользователя.
+    Verify the idempotency of user registration behavior.
 
-    Сценарий:
-    - пользователь регистрируется первый раз
-    - затем регистрируется повторно с новыми данными
+    Scenario:
+    - user registers for the first time
+    - then registers again with new data
 
-    Ожидаемое поведение:
-    - запись не дублируется (работает PRIMARY KEY + ON CONFLICT)
-    - данные обновляются
+    Expected behavior:
+    - record is not duplicated (PRIMARY KEY + ON CONFLICT works)
+    - data is updated
     """
-    # Первая регистрация
+    # First registration
     db.register_user(chat_id=1, user_id=10, username="usertest", full_name="Name Test")
     players = db.get_players(chat_id=1)
 
     assert len(players) == 1
     assert players[0][1] == "Name Test"
 
-    # Повторная регистрация с изменением имени
+    # Re-registration with a name change
     db.register_user(chat_id=1, user_id=10, username="testuser", full_name="Test Name")
     players = db.get_players(chat_id=1)
 
-    # Строка не дублируется
+    # Row is not duplicated
     assert len(players) == 1
 
-    # Данные обновились
+    # Data has been updated
     assert players[0][1] == "Test Name"
 
 
 def test_unregister_and_re_register(db):
     """
-    Проверка "мягкого удаления" пользователя.
+    Verify the "soft delete" of a user.
 
-    Сценарий:
-    - пользователь регистрируется
-    - затем "удаляется" (is_active = 0)
-    - затем регистрируется снова
+    Scenario:
+    - user registers
+    - then "deleted" (is_active = 0)
+    - then registers again
 
-    Ожидаемое поведение:
-    - удалённый пользователь не участвует в игре
-    - при повторной регистрации снова становится активным
+    Expected behavior:
+    - deleted user does not participate in the game
+    - becomes active again upon re-registration
     """
 
     db.register_user(1, 10, "testuser", "Test Name")
 
-    # Деактивация пользователя
+    # Deactivate user
     db.unregister_user(1, 10)
 
     players = db.get_players(chat_id=1)
 
-    # Пользователь не участвует в игре
+    # User does not participate in the game
     assert len(players) == 0
 
-    # Повторная регистрация (должна активировать обратно)
+    # Re-registration (should reactivate them)
     db.register_user(1, 10, "testuser", "Test Name")
 
     players = db.get_players(chat_id=1)
 
-    # Снова активен
+    # Active again
     assert len(players) == 1
 
 
 def test_exclude_today_winner(db):
     """
-    Проверка бизнес-правила:
-    пользователь, уже участвовавший сегодня (win/lose),
-    не должен попадать в выборку для новой игры.
+    Verify business rule:
+    a user who already participated today (win/lose)
+    should not be included in the selection for a new game.
 
-    Сценарий:
-    - два пользователя зарегистрированы
-    - одному назначаем победу (WINNER)
-    - запрашиваем список игроков
+    Scenario:
+    - two users are registered
+    - assign a win (WINNER) to one of them
+    - request the list of players
 
-    Ожидаемое поведение:
-    - пользователь с результатом за сегодня исключается
+    Expected behavior:
+    - the user with a result for today is excluded
     """
 
     db.register_user(1, 10, "testuser1", "Test Name1")
     db.register_user(1, 20, "testuser2", "Test Name2")
 
-    # Назначаем победителя
+    # Assign a winner
     db.set_winner(chat_id=1, user_id=20, game_type=GameType.WINNER)
 
-    # Получаем список доступных игроков
+    # Get the list of available players
     players = db.get_players(chat_id=1)
 
-    # Должен остаться только один
+    # Only one should remain
     assert len(players) == 1
 
-    # И это не тот, кто уже выиграл
+    # And it's not the one who already won
     assert players[0][0] == 10
 
 
 def test_chat_isolation(db):
     """
-    Проверка изоляции данных по chat_id.
+    Verify data isolation by chat_id.
 
-    Сценарий:
-    - один и тот же пользователь в двух чатах
-    - игра проводится только в одном чате
+    Scenario:
+    - the same user is in two different chats
+    - a game is played in only one chat
 
-    Ожидаемое поведение:
-    - состояние одного чата не влияет на другой
-    - статистика и выбор игроков независимы
+    Expected behavior:
+    - state of one chat does not affect the other
+    - statistics and player selection are independent
     """
 
     user_id = 777
     chat_one = 1
     chat_two = 2
 
-    # Регистрируем пользователя в двух чатах
+    # Register the user in two chats
     db.register_user(chat_one, user_id, "testuser", "Test Name")
     db.register_user(chat_two, user_id, "testuser", "Test Name")
 
-    # Проводим игру только в первом чате
+    # Play the game only in the first chat
     db.set_winner(chat_one, user_id, GameType.LOSER)
 
-    # В первом чате игра уже была
+    # In the first chat, the game has already run
     assert db.is_already_runned(chat_one, GameType.LOSER) is not None
 
-    # Во втором — нет
+    # In the second chat, it hasn't
     assert db.is_already_runned(chat_two, GameType.LOSER) is None
 
-    # Проверяем список игроков
+    # Check the player lists
 
-    # В первом чате пользователь уже участвовал - исключён
+    # In the first chat, the user has already participated - excluded
     players_one = db.get_players(chat_one)
     assert len(players_one) == 0
 
-    # Во втором чате он доступен
+    # In the second chat, they are available
     players_two = db.get_players(chat_two)
     assert len(players_two) == 1
     assert players_two[0][0] == user_id
@@ -157,22 +157,22 @@ def test_chat_isolation(db):
 
 def test_unique_index_prevents_two_winners_same_day(db):
     """
-    Проверка ограничения UNIQUE INDEX:
-    в одном чате не может быть двух победителей в один день.
+    Verify UNIQUE INDEX constraint:
+    there cannot be two winners in the same chat on the same day.
 
-    Сценарий:
-    - два пользователя
-    - пытаемся записать победу для обоих в один день
+    Scenario:
+    - two users
+    - attempt to record a win for both on the same day
 
-    Ожидаемое поведение:
-    - второй INSERT падает с IntegrityError
+    Expected behavior:
+    - the second INSERT fails with IntegrityError
     """
 
     db.register_user(1, 10, "user1", "User 1")
     db.register_user(1, 20, "user2", "User 2")
 
-    # Первый победитель - ok
+    # First winner - ok
     assert db.set_winner(1, 10, GameType.WINNER) is True
 
-    # Второй должен нарушить UNIQUE INDEX
+    # Second one should violate UNIQUE INDEX
     assert db.set_winner(1, 20, GameType.WINNER) is False

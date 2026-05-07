@@ -1,5 +1,3 @@
-RUFF := uv run ruff
-
 .PHONY: install prod-install run test type lint format clean
 
 install: ## Установить все зависимости (включая dev)
